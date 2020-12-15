@@ -5,11 +5,13 @@
 
 from abc import abstractmethod
 from logging import getLogger
-from typing import Collection, Container, Iterable, Protocol, Optional
+from typing import Any, Collection, Container, Iterable, Protocol, Optional
 from functools import cached_property
 from operator import itemgetter
 
 import numpy as np
+
+from anamod.core.model_analyzer import ModelAnalyzer
 
 from generalizedtrees.constraints import Constraint, LEQConstraint, GTConstraint, NEQConstraint, EQConstraint
 from generalizedtrees.features import FeatureSpec
@@ -206,14 +208,75 @@ class SplitCandidateGeneratorLC(Protocol):
 class AxisAlignedSplitGeneratorLC(SplitCandidateGeneratorLC):
 
     feature_spec: Container[FeatureSpec]
+    permitted_features: Optional[Container[int]] = None
+    feature_set: np.ndarray
+
+    def __init__(self, permitted_features: Optional[Container[int]]=None) -> None:
+        if permitted_features is not None:
+            self.permitted_features = permitted_features
+            self.limit_features = True
 
     def initialize(self, givens: GivensLC) -> 'SplitCandidateGeneratorLC':
         self.feature_spec = givens.feature_spec
+        if self.limit_features:
+            self.feature_set = np.array([
+                i for i in range(len(self.feature_spec))
+                if i in self.permitted_features])
+        else: self.feature_set = np.arange(len(self.feature_spec))
         return self
 
     def genenerator(self, data: np.ndarray, y: np.ndarray) -> Iterable[SplitTest]:
 
-        for j in range(len(self.feature_spec)):
+        for j in self.feature_set:
+            if self.feature_spec[j] is FeatureSpec.CONTINUOUS:
+                yield from fayyad_thresholds(data[:, j], j, y)
+            elif self.feature_spec[j] & FeatureSpec.DISCRETE:
+                yield from one_vs_all(data[:, j], j)
+            else:
+                raise ValueError(f"I don't know how to handle feature spec {self.feature_spec[j]}")
+
+
+# Implementation that limits search to certain features
+class ImportanceBased1DSplitGeneratorLC(SplitCandidateGeneratorLC):
+
+    feature_spec: Container[FeatureSpec]
+    k: Optional[int]
+    wrapped_model: Any
+
+    def __init__(self, use_top_k: Optional[int]=None):
+        k = use_top_k
+    
+    def initialize(self, givens: GivensLC) -> 'SplitCandidateGeneratorLC':
+        self.feature_spec = givens.feature_spec
+
+        # Assuming that oracle returns an n-by-#classes probability matrix
+        # Also assuming the binary case
+        class Model:
+            def predict(x):
+                return givens.oracle(x)[:,1]
+        
+        self.wrapped_model = Model()
+
+        return self
+    
+    def genenerator(self, data: np.ndarray, y: np.ndarray) -> Iterable[SplitTest]:
+
+        clamped_y = y.argmax(axis=1)
+
+        features = ModelAnalyzer(self.wrapped_model, data, clamped_y).analyze()
+
+        feature_idx = []
+
+        if self.k is None:
+            for f in features:
+                if f.important:
+                    feature_idx.extend(f.idx)
+        else:
+            features.sort(key=lambda f: f.effect_size, reversed=True)
+            for k in range(min(self.k, len(features))):
+                feature_idx.extend(features[k].idx)
+
+        for j in feature_idx:
             if self.feature_spec[j] is FeatureSpec.CONTINUOUS:
                 yield from fayyad_thresholds(data[:, j], j, y)
             elif self.feature_spec[j] & FeatureSpec.DISCRETE:
