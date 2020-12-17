@@ -210,6 +210,7 @@ class AxisAlignedSplitGeneratorLC(SplitCandidateGeneratorLC):
     feature_spec: Container[FeatureSpec]
     permitted_features: Optional[Container[int]] = None
     feature_set: np.ndarray
+    limit_features: bool = False
 
     def __init__(self, permitted_features: Optional[Container[int]]=None) -> None:
         if permitted_features is not None:
