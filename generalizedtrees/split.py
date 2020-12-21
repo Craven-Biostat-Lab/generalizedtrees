@@ -253,7 +253,7 @@ class ImportanceBased1DSplitGeneratorLC(SplitCandidateGeneratorLC):
         # Assuming that oracle returns an n-by-#classes probability matrix
         # Also assuming the binary case
         class Model:
-            def predict(x):
+            def predict(self, x):
                 return givens.oracle(x)[:,1]
         
         self.wrapped_model = Model()
