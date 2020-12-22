@@ -245,7 +245,7 @@ class ImportanceBased1DSplitGeneratorLC(SplitCandidateGeneratorLC):
     wrapped_model: Any
 
     def __init__(self, use_top_k: Optional[int]=None):
-        k = use_top_k
+        self.k = use_top_k
     
     def initialize(self, givens: GivensLC) -> 'SplitCandidateGeneratorLC':
         self.feature_spec = givens.feature_spec
