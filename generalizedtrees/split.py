@@ -273,7 +273,7 @@ class ImportanceBased1DSplitGeneratorLC(SplitCandidateGeneratorLC):
                 if f.important:
                     feature_idx.extend(f.idx)
         else:
-            features.sort(key=lambda f: f.effect_size, reversed=True)
+            features.sort(key=lambda f: f.effect_size, reverse=True)
             for k in range(min(self.k, len(features))):
                 feature_idx.extend(features[k].idx)
 
